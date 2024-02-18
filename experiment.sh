@@ -1,60 +1,78 @@
 #!/bin/bash
 
-# Function to display usage information
-show_help() {
-    echo "Usage: $0 <target_domain(s) | target_file> [output_file]"
-    echo "Enumerates subdomains for the target domain(s) or from a file and writes live URLs to a file."
-    echo "Arguments:"
-    echo "  <target_domain(s) | target_file>: Domain(s) to enumerate subdomains for or a file containing target URLs."
-    echo "  [output_file]: Optional - Specify the output file. If not provided, the script will not create an output file."
-}
-
-# Checking if no arguments are provided or if the user requests help
-if [ $# -eq 0 ] || [ "$1" == "-h" ] || [ "$1" == "--help" ]; then
-    show_help
-    exit 0
+if [ $# -eq 0 ]; then
+    echo "Usage: $0 <target_domain>"
+    exit 1
 fi
 
-# Parsing the arguments
-output_file=${@: -1} # Last argument is the output file
-targets=$1 # First argument is the target domain(s) or file
+target_domain=$1
 
-if [ -f "$targets" ]; then
-    # If the input is a file, read target domains from the file
-    target_domains=$(cat "$targets")
-else
-    # If the input is not a file, treat it as a list of target domains
-    target_domains=$targets
-fi
+# Step 1: Subdomain enumeration
+echo "[-] Enumerating subdomains..."
+subdomains=$(subfinder -d $target_domain -pc /home/anonyomus/subfinderconfig.txt)
+amass_enum=$(amass enum -d $target_domain)
+assetfinder_enum=$(assetfinder $target_domain)
+#knockpy_enum=$(python3 /root/tools/knockpy/knockpy.py $target_domain)
+gobuster_enum=$(gobuster dns -d $target_domain -w /usr/bin/SecLists/Discovery/DNS/subdomains-top1million-5000.txt)
 
-# Temporary file to store all subdomains
-temp_file="temp.txt"
+# Combine and sort subdomains
+all_subdomains=$(echo -e "$subdomains\n$amass_enum\n$assetfinder_enum" | sort -u)
 
-# Looping through each target domain provided
-for domain in $target_domains; do
-    echo "[-] Enumerating subdomains for $domain..."
-
-    # Running subdomain enumeration tools
-    echo "[+] Running subfinder for $domain..."
-    subfinder -d "$domain" -pc /home/anonyomus/subfinderconfig.txt>> "$temp_file" 2>&1
-
-    echo "[+] Running assetfinder for $domain..."
-    assetfinder "$domain" >> "$temp_file" 2>&1
-
-    echo "[+] Running sublist3r for $domain..."
-    sublist3r --domain "$domain" >> "$temp_file" 2>&1
-
-    echo "[+] Running findomain for $domain..."
-    findomain -t "$domain" >> "$temp_file" 2>&1
+# Step 2: Subdomain takeover check
+echo "[-] Checking for subdomain takeover..."
+for subdomain in $all_subdomains; do
+    if /home/anonyomus/subzy/ && .subzy run -hide -targets $subdomain | grep -q "Vulnerable"; then/home/anonyomus/subzy
+        echo "Vulnerable subdomain found: $subdomain"
+        echo "echo \"$subdomain\" | notify" | bash
+    fi
 done
 
-# Combine all results and extract unique subdomains
-echo "[-] Combining and extracting unique subdomains..."
-sort -u "$temp_file" -o "$temp_file"
+# Step 3: Find live URLs using HTTPX
+echo "[-] Finding live URLs..."
+#live_urls=$(httpx -l $all_subdomains)
+live_urls=$(cd /home/anonyomus/httpx/cmd/httpx && ./httpx  -l $all_subdomains)
 
-# Check for live URLs and write them to the output file
-echo "[-] Checking live URLs and writing to $output_file..."
-httprobe -c 80 < "$temp_file" >> "$output_file" || { echo "Error: Cannot write to $output_file"; exit 1; }
+# Step 4: Nuclei CVE scan
+echo "[-] Performing Nuclei CVE scan..."
+nuclei -l $live_urls -t /http/cves/ -severity critical,high,medium,low | tee -a target_full_recon.txt | grep -qE "critical|high|medium|low" && echo "Vulnerabilities found." | notify
 
-# Cleanup: Remove temporary file
-rm "$temp_file"
+# Step 5: Nuclei vulnerability scan
+echo "[-] Performing Nuclei vulnerability scan..."
+nuclei -l $live_urls -t /http/vulnerabilities/ -severity critical,high,medium,low | tee -a target_full_recon.txt | grep -qE "critical|high|medium|low" && echo "Vulnerabilities found." | notify
+
+# Step 6: Nuclei exposure scan
+echo "[-] Performing Nuclei exposure scan..."
+nuclei -l $live_urls -t /http/exposures/ -severity critical,high,medium,low | tee -a target_full_recon.txt | grep -qE "critical|high|medium|low" && echo "Exposures found." | notify
+
+# Step 7: Nuclei exposed panels scan
+echo "[-] Performing Nuclei panels scan..."
+nuclei -l $live_urls -t /http/exposed-panels/ | tee -a target_full_recon.txt | grep -qE "critical|high|medium|low" && echo "Panels found." | notify
+
+# Step 8: Nuclei misconfigurations scan
+echo "[-] Performing Nuclei misconfigurations scan..."
+nuclei -l $live_urls -t  /http/misconfiguration/ | tee -a target_full_recon.txt | grep -qE "critical|high|medium|low" && echo "Misconfigurations found." | notify
+
+# Step 9: Nuclei Fuzzing
+echo "[-] Performing Nuclei Fuzzing scan..."
+nuclei -l $live_urls -t /http/fuzzing/ | tee -a target_full_recon.txt | grep -qE "critical|high|medium|low" && echo "Fuzzing found." | notify
+
+# Step 10: Nuclei miscellaneous
+echo "[-] Performing Nuclei miscellaneous scan..."
+nuclei -l $live_urls -t /http/miscellaneous/ | tee -a target_full_recon.txt | grep -qE "critical|high|medium|low" && echo "miscellaneous found." | notify
+
+# Step 11: Ffuf
+echo "[-] Running Dirsearch..."
+while IFS= read -r subdomain; do
+    # dirsearch -u $subdomain -w /usr/bin/SecLists/Discovery/Web-Content/raft-medium-files-lowercase.txt  | tee -a target_full_recon.txt | grep -q "Status: 200" && echo "Status 200 found for $subdomain." | notify
+    #ffuf -u https://$subdomain/WFUZZ -w /home/anonyomus/superword.txt/super.txt:WFUZZ -mode clusterbomb | tee -a target_full_recon.txt | grep -q "Status: 200" && echo "Status 200 found for $subdomain." | notify
+    base_url="https://$subdomain/"
+ffuf -u $base_url"FUZZ" -w /root/super.txt -e "$base_url"FUZZ -mode clusterbomb | grep -q "Status: 200" && echo "Status 200 found for $base_url." | notify
+
+done <<< "$all_subdomains"
+
+
+# Step 10: Save results to target_full_recon.txt
+echo "$live_urls" > target_full_recon.txt
+
+echo "[-] Full reconnaissance completed. Results saved to target_full_recon.txt."
+echo "Reconnaissance on $target_domain completed. Results saved to target_full_recon.txt." | notify
