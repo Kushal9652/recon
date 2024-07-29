@@ -1,0 +1,113 @@
+---------------------------------------------------------------------------------------RECON MANUAL-----------------------------------------------------------------------------------
+manual recon
+Subdomains Full gather
+
+subfinder -d redacted.com -all -silent -nc -o subdomains.txt
+
+assetfinder --subs-only redacted.com | sort -u >> subdomains.txt
+
+scrape the crt.sh with a command:curl -s https://crt.sh/\?q\=\amazon.com\&output\=json | jq -r .[].name_value' | grep -Po '(\w+\\w+\.\w+)$' | anew subdomains.txt
+
+amass enum -passive -d redacted.com -silent -nocolor | sort -u >> subdomains.txt
+
+I utilized the Shuffledns tool to perform Subdomain Bruteforce and saved the resulting output in a file named subdomains.txt.
+
+shuffledns -d redacted.com -r /root/tools/massdns/lists/resolvers.txt -w /root/subdomains-top1million-5000.txt -silent -nc | sort -u >> subdomains.txt
+
+###############################################################################OPTIONAL CONTENT##############################################################################
+In the Subdomain Permutation step, I used the Altrex tool to create a new list of subdomains with permutations.
+
+cat subdomains.txt | alterx -silent -o subdomain-permutation.txt
+
+Apart from other tools, one can also utilize the dnsgen tool. While working on DNS resolving, I used the massdns tool. Although dnsx is also a viable option, previous tests revealed that massdns performs much faster.
+
+cat subdomain-permutation.txt | massdns -r /root/tools/massdns/lists/resolvers.txt -o L -w dns-resolving.txt
+
+All Live Domains finding using httpx
+
+cat dns-resolving.txt | httpx -sc -title -td -favicon -asn -silent -nc -o service-discovery.txt
+
+All done run your scans ...
+Subdomain Takeover
+
+subzy run --targets subdomain-permutation.txt --hide_fails --https --timeout 10 | notify
+
+XSS Automation oneliner
+
+cat onsurity-final-live.txt | katana | Gxss -c 100 | dalfox pipe --skip-bav --skip-mining-all --skip-grepping 
+
+SQLi oneliner
+
+cat subdomain-permutation.txt | dnsx | waybackurls | uro | grep "\?" | head -20 | httpx -silent > urls;sqlmap -m urls --batch --random-agent --level=1 | tee sql_sara.txt
+
+cat subdomain-permutation.txt | dnsx | waybackurls | sort -u | gf sqli > gf_sql.txt; sqlmap -m gf_sqli.txt --batch --risk 3 --random-agent | tee -a gf_sqli.txt
+################################################################################################################################## UR WISH U CAN USE :) I RELY ON MANUAL:)\
+
+use shodanx for scraping the ips 
+
+scrape the js files using katana 
+
+use secretfinder using regex experssion u can filter the sensitive data such as api keys 
+
+use ffuf and dirsearch on domains that u hunt and mostly do manual looking in to the wappalyzer !!
+
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+                                                              GIT HUB DORKS:
+                                                            
+                                                            
+ 1.>  Passwords and Keys:
+"password" "site:github.com"
+"secret key" "site:github.com"
+"access token" "site:github.com"
+"firebase key" "site:github.com"
+
+2.>Environment Variables
+"env_key" "site:github.com"
+"env" "site:github.com" "SECRET"
+"env" "site:github.com" "TOKEN"
+
+3.USER CREDENTIALS
+
+"username" "password" "site:github.com"
+"END_USER_USERNAME" "site:github.com"
+"END_USER_Password" "site:github.com"
+
+4.>CONFIGURATION FILES
+
+"config" "password" "site:github.com"
+"config" "key=" "site:github.com"
+"config" "token" "site:github.com"
+
+
+5.API_KEYS 
+"api_key" "site:github.com"
+"api token" "site:github.com"
+"access_key" "site:github.com"
+
+6.DATABASE CONNECTION STRINGS
+
+
+"mongodb" "password" "site:github.com"
+"mysql" "password" "site:github.com"
+"postgres" "password" "site:github.com"
+
+
+7.MISCELLINIOUS SENSITIVE DATA 
+"ssn" "site:github.com"
+"credit card" "site:github.com"
+"api_key" "site:github.com"
+"secret" "site:github.com"
+
+8.>BRANCH AND OTHERE SENSITIVE DATA
+
+--branch= "site:github.com"
+--username= "site:github.com"
+--repo= "site:github.com"
+
+9.>BUILD AND CONFIGURATION FILES
+-Dmaven.javadoc.skip= "site:github.com"
+0GITHUB_TOKEN= "site:github.com"
+
+
+-------------------------------------------------------------------------GOOGLE DORKS------------------------------------------------------------------------------------------
